@@ -1,0 +1,33 @@
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Arquivos temporários
+*.tmp
+*.temp
+
+# Node modules (se usar npm no futuro)
+node_modules/
+
+# Modelos 3D grandes (opcional - remova se quiser versionar)
+# assets/models/*.glb
+# assets/models/*.gltf
+
+# Arquivos de backup
+*.bak
+*.backup
+
+# Cache
+.cache/

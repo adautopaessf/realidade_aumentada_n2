@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RA - Exposição Virtual de Veículos</title>
+    <meta name="description" content="Experiência de Realidade Aumentada com seleção de veículos usando AR.js e A-Frame.">
+
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #info-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+            z-index: 1000;
+            max-width: 320px;
+            transition: background-color 0.3s ease;
+        }
+
+        #info-overlay h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }
+
+        #info-overlay p {
+            margin: 5px 0;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        #current-vehicle {
+            margin-top: 10px;
+            padding: 8px;
+            background-color: rgba(76, 175, 80, 0.3);
+            border-radius: 5px;
+            border-left: 3px solid #4CAF50;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        #loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.9);
+            color: white;
+            font-family: Arial, sans-serif;
+            z-index: 2000;
+            text-align: center;
+            transition: opacity 0.5s ease-out;
+        }
+
+        #loading h4 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        /* Painel de seleção de veículos */
+        #vehicle-selector {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.85);
+            padding: 15px 20px;
+            border-radius: 12px;
+            z-index: 1000;
+            display: none;
+            max-width: 90%;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        #vehicle-selector.visible {
+            display: block;
+        }
+
+        #vehicle-selector h4 {
+            margin: 0 0 12px 0;
+            color: white;
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        .vehicle-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: nowrap;
+            justify-content: center;
+            overflow-x: auto;
+        }
+
+        .vehicle-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: Arial, sans-serif;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .vehicle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .vehicle-btn:active {
+            transform: translateY(0);
+        }
+
+        .vehicle-btn.active {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3);
+        }
+
+        .vehicle-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #debug-info {
+            position: absolute;
+            bottom: 130px;
+            left: 10px;
+            background-color: rgba(255, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 11px;
+            z-index: 1000;
+            max-width: 90%;
+            transition: background-color 0.3s ease;
+        }
+
+        #debug-info.detected {
+            background-color: rgba(0, 175, 0, 0.8);
+        }
+
+        /* Responsivo para mobile */
+        @media (max-width: 600px) {
+            .vehicle-btn {
+                padding: 10px 14px;
+                font-size: 10px;
+            }
+
+            #vehicle-selector {
+                bottom: 10px;
+                padding: 10px 12px;
+                left: 10px;
+                right: 10px;
+                transform: none;
+                max-width: calc(100% - 20px);
+            }
+
+            #vehicle-selector h4 {
+                font-size: 12px;
+                margin-bottom: 8px;
+            }
+
+            .vehicle-buttons {
+                gap: 6px;
+            }
+
+            #debug-info {
+                bottom: 100px;
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="info-overlay">
+        <h3>🚗 Exposição Virtual de Veículos</h3>
+        <p><strong>Total de Veículos:</strong> 5 modelos</p>
+        <p><strong>Instruções:</strong> Aponte a câmera para o marcador Hiro</p>
+        <div id="current-vehicle">
+            Veículo atual: Carro da Polícia
+        </div>
+    </div>
+
+    <div id="loading">
+        <div>
+            <h4>Carregando Modelos 3D...</h4>
+            <p style="font-size: 14px;">Aguarde o carregamento de 5 veículos</p>
+            <p style="font-size: 12px; margin-top: 10px; color: #ccc;">Isso pode levar alguns segundos...</p>
+        </div>
+    </div>
+
+    <div id="debug-info">
+        Status: Inicializando câmera...
+    </div>
+
+    <div id="vehicle-selector">
+        <h4>🚗 Selecione o Veículo</h4>
+        <div class="vehicle-buttons">
+            <button class="vehicle-btn active" data-vehicle="police">Carro da Polícia</button>
+            <button class="vehicle-btn" data-vehicle="audi">Carro Esportivo</button>
+            <button class="vehicle-btn" data-vehicle="sedan">Carro Sedã</button>
+            <button class="vehicle-btn" data-vehicle="coupe">Cupê Esportivo</button>
+        </div>
+    </div>
+
+    <a-scene
+        embedded
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono; maxDetectionRate: 30;"
+        renderer="logarithmicDepthBuffer: true; antialias: true; precision: mediump;"
+        vr-mode-ui="enabled: false">
+
+        <a-assets>
+            <a-asset-item id="police-car-model" src="./assets/models/police_car.glb"></a-asset-item>
+            <a-asset-item id="audi-model" src="./assets/models/audi_pb18_e_tron_low_poly_3d.glb"></a-asset-item>
+            <a-asset-item id="sedan-model" src="./assets/models/generic_sedan_car.glb"></a-asset-item>
+            <a-asset-item id="coupe-model" src="./assets/models/generic_sport_coupe_car.glb"></a-asset-item>
+            <a-asset-item id="red-car-model" src="./assets/models/red_car.glb"></a-asset-item>
+        </a-assets>
+
+        <a-marker preset="hiro" id="marker-hiro">
+            <!-- Police Car - Inicial -->
+            <a-entity
+                id="police-car-entity"
+                class="vehicle-entity"
+                gltf-model="#police-car-model"
+                scale="0.5 0.5 0.5"
+                position="0 0 0"
+                rotation="0 0 0"
+                visible="true">
+            </a-entity>
+
+            <!-- Audi -->
+            <a-entity
+                id="audi-entity"
+                class="vehicle-entity"
+                gltf-model="#audi-model"
+                scale="2 2 2"
+                position="0 0 0"
+                rotation="0 0 0"
+                visible="false">
+            </a-entity>
+
+            <!-- Sedan -->
+            <a-entity
+                id="sedan-entity"
+                class="vehicle-entity"
+                gltf-model="#sedan-model"
+                scale="0.3 0.3 0.3"
+                position="0 0 0"
+                rotation="0 0 0"
+                visible="false">
+            </a-entity>
+
+            <!-- Sport Coupé -->
+            <a-entity
+                id="coupe-entity"
+                class="vehicle-entity"
+                gltf-model="#coupe-model"
+                scale="0.3 0.3 0.3"
+                position="0 0 0"
+                rotation="0 0 0"
+                visible="false">
+            </a-entity>
+
+            <!-- Red Car -->
+            <a-entity
+                id="red-car-entity"
+                class="vehicle-entity"
+                gltf-model="#red-car-model"
+                scale="0.5 0.5 0.5"
+                position="0 0 0"
+                rotation="0 0 0"
+                visible="false">
+            </a-entity>
+        </a-marker>
+
+        <a-light type="ambient" color="#ffffff" intensity="0.7"></a-light>
+        <a-light type="directional" color="#ffffff" intensity="0.6" position="1 2 4"></a-light>
+
+        <a-entity camera></a-entity>
+    </a-scene>
+
+    <script>
+        const loading = document.getElementById('loading');
+        const debugInfo = document.getElementById('debug-info');
+        const infoOverlay = document.getElementById('info-overlay');
+        const currentVehicleDisplay = document.getElementById('current-vehicle');
+        const vehicleSelector = document.getElementById('vehicle-selector');
+        const markerHiro = document.querySelector('#marker-hiro');
+
+        // Configuração dos veículos
+        const vehicles = {
+            'police': {
+                name: 'Carro da Polícia',
+                entityId: 'police-car-entity'
+            },
+            'audi': {
+                name: 'Audi PB18 e-tron',
+                entityId: 'audi-entity'
+            },
+            'sedan': {
+                name: 'Sedan',
+                entityId: 'sedan-entity'
+            },
+            'coupe': {
+                name: 'Cupê Esportivo',
+                entityId: 'coupe-entity'
+            },
+            'red-car': {
+                name: 'Carro Vermelho',
+                entityId: 'red-car-entity'
+            }
+        };
+
+        let currentVehicle = 'police';
+        let modelsLoaded = 0;
+        const totalModels = 5;
+
+        // Controle de carregamento dos modelos
+        const entityIds = ['police-car-entity', 'audi-entity', 'sedan-entity', 'coupe-entity', 'red-car-entity'];
+
+        entityIds.forEach(entityId => {
+            const entity = document.querySelector(`#${entityId}`);
+            if (entity) {
+                entity.addEventListener('model-loaded', function() {
+                    modelsLoaded++;
+                    console.log(`✅ Modelo ${entityId} carregado (${modelsLoaded}/${totalModels})`);
+
+                    if (modelsLoaded === totalModels) {
+                        if (loading) {
+                            loading.style.opacity = 0;
+                            setTimeout(() => {
+                                loading.style.display = 'none';
+                            }, 500);
+                        }
+                        debugInfo.textContent = 'Status: Todos os modelos carregados. Procurando marcador...';
+                        console.log('✅ Todos os modelos carregados!');
+                    }
+                });
+
+                entity.addEventListener('model-error', function(e) {
+                    console.error(`❌ Erro ao carregar ${entityId}:`, e);
+                    debugInfo.textContent = `Erro: ${entityId} não carregou`;
+                });
+            }
+        });
+
+        // Função para trocar de veículo
+        function switchVehicle(vehicleKey) {
+            // Esconde todos os veículos
+            Object.keys(vehicles).forEach(key => {
+                const entity = document.querySelector(`#${vehicles[key].entityId}`);
+                if (entity) {
+                    entity.setAttribute('visible', false);
+                }
+            });
+
+            // Mostra o veículo selecionado
+            const selectedEntity = document.querySelector(`#${vehicles[vehicleKey].entityId}`);
+            if (selectedEntity) {
+                selectedEntity.setAttribute('visible', true);
+                currentVehicle = vehicleKey;
+
+                // Atualiza display
+                currentVehicleDisplay.textContent = `Veículo atual: ${vehicles[vehicleKey].name}`;
+
+                // Atualiza botões
+                document.querySelectorAll('.vehicle-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                    if (btn.getAttribute('data-vehicle') === vehicleKey) {
+                        btn.classList.add('active');
+                    }
+                });
+
+                console.log(`🔄 Veículo alterado para: ${vehicles[vehicleKey].name}`);
+            }
+        }
+
+        // Event listeners para os botões
+        document.querySelectorAll('.vehicle-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const vehicleKey = this.getAttribute('data-vehicle');
+                switchVehicle(vehicleKey);
+            });
+        });
+
+        // Eventos do marcador
+        let markerDetected = false;
+
+        if (markerHiro) {
+            markerHiro.addEventListener('markerFound', function() {
+                console.log('✅ Marcador Hiro detectado!');
+                markerDetected = true;
+
+                if (infoOverlay) {
+                    infoOverlay.style.backgroundColor = 'rgba(76, 175, 80, 0.85)';
+                }
+                if (debugInfo) {
+                    debugInfo.textContent = `✅ MARCADOR DETECTADO! Exibindo: ${vehicles[currentVehicle].name}`;
+                    debugInfo.classList.add('detected');
+                }
+                if (vehicleSelector) {
+                    vehicleSelector.classList.add('visible');
+                }
+            });
+
+            markerHiro.addEventListener('markerLost', function() {
+                console.log('❌ Marcador perdido!');
+                markerDetected = false;
+
+                if (infoOverlay) {
+                    infoOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                }
+                if (debugInfo) {
+                    debugInfo.textContent = 'Status: Procurando marcador...';
+                    debugInfo.classList.remove('detected');
+                }
+                if (vehicleSelector) {
+                    vehicleSelector.classList.remove('visible');
+                }
+            });
+        }
+
+        // Verificação de câmera
+        window.addEventListener('load', () => {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function(stream) {
+                        console.log('Câmera autorizada.');
+                        stream.getTracks().forEach(track => track.stop());
+                    })
+                    .catch(function(error) {
+                        console.error('Erro ao acessar câmera:', error);
+                        if (loading) {
+                            loading.innerHTML = '<h3>ERRO DE CÂMERA!</h3><p>Permita o acesso à câmera e recarregue a página.</p>';
+                            loading.style.backgroundColor = 'rgba(255, 165, 0, 0.9)';
+                        }
+                    });
+            } else {
+                if (loading) {
+                    loading.innerHTML = '<h3>ERRO!</h3><p>Seu navegador não suporta MediaDevices.</p>';
+                }
+            }
+        });
+
+        console.log('🚀 AR.js com seleção de veículos inicializado!');
+    </script>
+</body>
+</html>
